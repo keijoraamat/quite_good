@@ -1,0 +1,68 @@
+name: Main Workflow
+
+on:
+  repository_dispatch:
+    types: [backend-changed]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  APP_VERSION: ${{ github.run_number }}
+
+jobs:
+  build-backend:
+    name: Build and Publish Image
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ${{ env.APP }}
+
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Read Java version from build.gradle
+        run: |
+          # Read the build.gradle file
+          java_version=$(grep -oP "sourceCompatibility\s*=\s*'(\d+)'" build.gradle | cut -d"'" -f2)
+          echo "APP_JAVA_VERSION=$java_version" >> $GITHUB_ENV
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.TEMPORARY_PLAYER_PAT }}
+
+      - name: Build and push Docker image
+        id: push
+        uses: docker/build-push-action@f2a1d5e99d037542a71f64918e516c093c6f3fc4
+        with:
+          context: .
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}:${{ env.APP_VERSION }}
+
+
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Deploy to ECS
+        uses: aws-actions/aws-ecs-deploy@v2
+        with:
+          cluster: my-cluster
+          service: my-service
+          task-definition: my-task-definition
+          container-name: my-container-name
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}:${{ env.APP_VERSION }}
+          wait-for-service-stability: true
