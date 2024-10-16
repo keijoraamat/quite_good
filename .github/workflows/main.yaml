@@ -1,22 +1,23 @@
 name: Main Workflow
 
 on:
-  repository_dispatch:
-    types: [backend-changed]
+  push:
+    branches:
+      - master
   workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   APP_VERSION: ${{ github.run_number }}
+  ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  PAT: ${{ secrets.CLASSICAL_TOKEN }}
+  ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
 jobs:
   build-backend:
     name: Build and Publish Image
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: ${{ env.APP }}
 
     permissions:
       contents: read
@@ -28,18 +29,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Read Java version from build.gradle
-        run: |
-          # Read the build.gradle file
-          java_version=$(grep -oP "sourceCompatibility\s*=\s*'(\d+)'" build.gradle | cut -d"'" -f2)
-          echo "APP_JAVA_VERSION=$java_version" >> $GITHUB_ENV
-
       - name: Log in to the Container registry
         uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.TEMPORARY_PLAYER_PAT }}
+          password: ${{ env.PAT }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with: 
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: us-east-1
 
       - name: Build and push Docker image
         id: push
@@ -57,12 +58,17 @@ jobs:
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
-      - name: Deploy to ECS
-        uses: aws-actions/aws-ecs-deploy@v2
+      - name: Fill in the new image and account ID in the ECS task definition
+        run: |
+          export ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}:${{ env.APP_VERSION }}
+          sed -i 's|<IMAGE_NAME>|'"$NEW_IMAGE_URI"'|g' task-def.json
+          sed -i 's|<AWS_ACCOUNT_ID>|'${{ env.ACCOUNT_ID }}'|g' task-def.json
+  
+      - name: Update ECS Service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
-          cluster: my-cluster
-          service: my-service
-          task-definition: my-task-definition
-          container-name: my-container-name
-          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME}}:${{ env.APP_VERSION }}
+          task-definition: task-def.json
+          service: flask-app-service
+          cluster: ecs-cluster
           wait-for-service-stability: true
+  

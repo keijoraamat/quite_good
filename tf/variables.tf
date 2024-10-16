@@ -21,5 +21,10 @@ variable "app_port" {
 
 variable "docker_image" {
   description = "Docker image to deploy"
-  default     = "your-dockerhub-username/flask-app:latest"
+  default     = "ghcr.io/keijoraamat/quite_good:latest"
+}
+
+variable "github_repo" {
+  description = "GitHub repository in the format owner/repo"
+  default     = "keijoraamat/quite_good"
 }

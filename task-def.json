@@ -1,0 +1,32 @@
+{
+    "family": "flask-app-task",
+    "networkMode": "awsvpc",
+    "executionRoleArn": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/ecsTaskExecutionRole",
+    "containerDefinitions": [
+      {
+        "name": "flask-app-container",
+        "image": "<IMAGE_NAME>",
+        "cpu": 256,
+        "memory": 512,
+        "essential": true,
+        "portMappings": [
+          {
+            "containerPort": 8089,
+            "protocol": "tcp"
+          }
+        ],
+        "logConfiguration": {
+          "logDriver": "awslogs",
+          "options": {
+            "awslogs-group": "/ecs/flask-app",
+            "awslogs-region": "us-east-1",
+            "awslogs-stream-prefix": "ecs"
+          }
+        }
+      }
+    ],
+    "requiresCompatibilities": ["FARGATE"],
+    "cpu": "256",
+    "memory": "512"
+  }
+  
