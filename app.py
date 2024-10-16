@@ -11,8 +11,8 @@ def index():
         return "Invalid header value", 400
 
 @app.route('/health', methods=['GET'])
-def index():
-    return 200
+def health():
+    return 'OK', 200
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8089)
