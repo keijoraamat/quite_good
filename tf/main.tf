@@ -3,6 +3,21 @@ provider "aws" {
   region = var.aws_region
 }
 
+resource "null_resource" "dummy" {
+  triggers = {
+    always_run = timestamp()
+  }
+}
+
+data "aws_ecs_task_definition" "external_task_def" {
+  task_definition = "flask-app-task"
+
+  depends_on = [
+    null_resource.dummy
+  ]
+}
+
+
 # Create a VPC
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr_block
@@ -181,9 +196,9 @@ resource "aws_ecs_task_definition" "task" {
 resource "aws_ecs_service" "service" {
   name            = "flask-app-service"
   cluster         = aws_ecs_cluster.ecs_cluster.id
-  task_definition = aws_ecs_task_definition.task.arn
+  task_definition = "${data.aws_ecs_task_definition.external_task_def.family}:${data.aws_ecs_task_definition.external_task_def.revision}"
   launch_type     = "FARGATE"
-  desired_count   = 2
+  desired_count   = 1
 
   network_configuration {
     subnets         = aws_subnet.public[*].id

@@ -28,3 +28,9 @@ variable "github_repo" {
   description = "GitHub repository in the format owner/repo"
   default     = "keijoraamat/quite_good"
 }
+
+variable "manage_task_definition" {
+  description = "Whether to manage the ECS task definition in Terraform"
+  type        = bool
+  default     = false
+}
